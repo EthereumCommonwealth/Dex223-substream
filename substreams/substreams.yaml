@@ -1,0 +1,67 @@
+specVersion: v0.1.0
+package:
+  name: dex223
+  version: v0.1.0
+
+imports:
+  entity: https://github.com/streamingfast/substreams-entity-change/releases/download/v1.1.0/substreams-entity-change-v1.1.0.spkg
+
+protobuf:
+  files:
+    - dex223.proto
+  importPaths:
+    - proto
+
+binaries:
+  default:
+    type: wasm/rust-v1
+    file: ./target/wasm32-unknown-unknown/release/substreams.wasm
+
+modules:
+  - name: map_pools
+    kind: map
+    initialBlock: 48404676
+    inputs:
+      - source: sf.ethereum.type.v2.Block
+    output:
+      type: proto:dex223.v1.PoolEvents
+
+  - name: map_token_convertes
+    kind: map
+    initialBlock: 48404036
+    inputs:
+      - source: sf.ethereum.type.v2.Block
+    output:
+      type: proto:dex223.v1.TokenConverterEvents
+
+  - name: store_pools
+    kind: store
+    initialBlock: 48404676
+    updatePolicy: "set"
+    valueType: "proto:dex223.v1.PoolCreatedEvent"
+    inputs:
+      - map: map_pools # Changed from 'source' to 'map'
+
+  - name: store_tokens
+    initialBlock: 48404676
+    kind: store
+    updatePolicy: "set"
+    valueType: "proto:dex223.v1.TokenInfo"
+    inputs:
+      - map: map_pools # Changed from 'source' to 'map'
+
+  - name: map_events
+    kind: map
+    initialBlock: 48404676
+    inputs:
+      - source: sf.ethereum.type.v2.Block
+      - map: map_pools
+      - map: map_token_convertes
+      - store: store_pools
+        mode: get
+      - store: store_tokens
+        mode: get
+    output:
+      type: proto:dex223.v1.Events
+
+network: eosevm

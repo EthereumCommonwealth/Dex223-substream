@@ -1,0 +1,139 @@
+syntax = "proto3";
+
+package dex223.v1;
+
+message Transaction {
+    string id = 1;
+    uint64 block_number = 2;
+    uint64 timestamp = 3;
+    uint64 gas_used = 4;
+    string gas_price = 5;
+    uint64 log_ordinal = 6;
+    string address = 7;
+    string from = 8;
+    string to = 9;
+}
+
+message TokenInfo {
+    string name = 1;
+    string symbol = 2;
+    uint64 decimals = 3;
+    bool in_converter = 4;
+    string total_supply = 5;
+}
+
+message Token {
+    string address_erc20 = 1;
+    string address_erc223 = 2;
+    TokenInfo token_info = 3;
+}
+
+message PoolEvents {
+    repeated PoolCreatedEvent pool_created_events = 1;
+}
+
+message PoolCreatedEvent {
+    Transaction tx = 1;
+    Token token0 = 2;
+    Token token1 = 3;
+    string fee = 4;
+    string pool_address = 5;
+    int32 tick_spacing = 6;
+}
+
+message InitializeEvent {
+    Transaction tx = 1;
+    string sqrt_price_x96 = 2;
+    int32 tick = 3;
+    string pool_address = 4;
+}
+
+message SwapEvent {
+    Transaction tx = 1;
+    string sender = 2;
+    string recipient = 3;
+    string amount0 = 4;
+    string amount1 = 5;
+    string sqrt_price_x96 = 6;
+    string liquidity = 7;
+    int32 tick = 8;
+    string pool_address = 9;
+
+}
+
+message MintEvent {
+    Transaction tx = 1;
+    string sender = 2;
+    string owner = 3;
+    int32 tick_lower = 4;
+    int32 tick_upper = 5;
+    string amount = 6;
+    string amount0 = 7;
+    string amount1 = 8;
+    string pool_address = 9;
+}
+
+message BurnEvent {
+    Transaction tx = 1;
+    string owner = 2;
+    int32 tick_lower = 3;
+    int32 tick_upper = 4;
+    string amount = 5;
+    string amount0 = 6;
+    string amount1 = 7;
+    string pool_address = 8;
+}
+
+message CollectEvent {
+    Transaction tx = 1;
+    string recipient = 2;
+    string owner = 3;
+    int32 tick_lower = 4;
+    int32 tick_upper = 5;
+    string amount0 = 6;
+    string amount1 = 7;
+    string pool_address = 8;
+
+}
+
+message FlashEvent {
+    Transaction tx = 1;
+    string sender = 2;
+    string recipient = 3;
+    string amount0 = 4;
+    string amount1 = 5;
+    string paid0 = 6;
+    string paid1 = 7;
+    string pool_address = 8;
+}
+
+message ERC20WrapperCreatedEvent {
+    Transaction tx = 1;
+    Token token = 2;
+}
+
+message ERC223WrapperCreatedEvent {
+    Transaction tx = 1;
+    Token token = 2;
+}
+
+message TokenConverterEvents {
+    repeated ERC20WrapperCreatedEvent erc223_to_erc20 = 1;
+    repeated ERC223WrapperCreatedEvent erc20_to_erc223 = 2;
+}
+
+message TokenInfos {
+    repeated Token tokens = 1;
+}
+
+message Events {
+    repeated PoolCreatedEvent pool_created_events = 1;
+    repeated InitializeEvent initialize_events = 2;
+    repeated SwapEvent swap_events = 3;
+    repeated MintEvent mint_events = 4;
+    repeated BurnEvent burn_events = 5;
+    repeated FlashEvent flash_events = 6;
+    repeated CollectEvent collect_events = 7;
+    repeated ERC20WrapperCreatedEvent erc20_wrapper_created_events = 8;
+    repeated ERC223WrapperCreatedEvent erc223_wrapper_created_events = 9;
+}
