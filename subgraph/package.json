@@ -9,10 +9,9 @@
     "create-local": "export $(xargs < .env) && graph create --node http://localhost:8020/ dex223-v1-$NETWORK",
     "remove-local": "export $(xargs < .env) &&  graph remove --node http://localhost:8020/ dex223-v1-$NETWORK",
     "deploy-local": "export $(xargs < .env) && graph deploy --node http://localhost:8020/ --ipfs http://localhost:5001 dex223-v1-$NETWORK",
-    "pause-local": "docker exec graph-node graphman unassign subgraphtest",
-    "resume-local": "docker exec graph-node graphman reassign subgraphtest default",
-    "clean-local-data": "rm -rf ./graph-node/data",
-    "launch-graph-node": "./graph-node/start.sh"
+    "create-server": "export $(xargs < .env) && graph create --node http://194.238.30.31:8020/ dex223-$NETWORK",
+    "remove-server": "export $(xargs < .env) && graph remove --node http://194.238.30.31:8020/ dex223-$NETWORK",
+    "deploy-server": "export $(xargs < .env) && graph deploy --node http://194.238.30.31:8020/ --ipfs http://194.238.30.31:5001 dex223-$NETWORK --version-label=v0.0.1"
   },
   "dependencies": {
     "@graphprotocol/graph-cli": "^0.86.0",

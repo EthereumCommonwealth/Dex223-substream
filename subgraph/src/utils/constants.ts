@@ -1,11 +1,7 @@
 /* eslint-disable prefer-const */
 import { BigInt, BigDecimal } from "@graphprotocol/graph-ts";
-// import { Factory as FactoryContract } from '../types/templates/Pool/Factory'
-// import { TokenConverter as TokenConverterContract } from '../types/templates/Pool/TokenConverter'
 
 export const ADDRESS_ZERO = "0x0000000000000000000000000000000000000000";
-// export const FACTORY_ADDRESS = '0x9f3118af733ea3fe4f9ed71033f25b6bcf7f49e9'
-// export const TOKEN_CONVERTER_ADDRESS = ''
 
 export const WETH_ADDRESS = "0xc00592aa41d32d137dc480d9f6d0df19b860104f";
 export const USDC_WETH_03_POOL = "0xed93d8b3951f73d6707919e649ef59235e64beb6";

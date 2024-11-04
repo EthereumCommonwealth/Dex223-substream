@@ -1,4 +1,6 @@
 #!/usr/bin/env bash
+echo "Generating substreams generated-config.toml"
+export $(xargs < .env)
 
 export NETWORK=${NETWORK}
 export SUBSTREAMS_ENDPOINT=${SUBSTREAMS_ENDPOINT}

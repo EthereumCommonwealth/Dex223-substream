@@ -1,6 +1,5 @@
 use crate::pb::dex223::v1::Transaction;
 
-
 use substreams::{hex,  Hex};
 use substreams_ethereum::pb::eth::v2::{TransactionTrace, Log};
 use substreams::scalar::{BigInt};

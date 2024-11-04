@@ -23,7 +23,6 @@ import { CollectEvent } from "./pb/dex223/v1/CollectEvent";
 import { ERC20WrapperCreatedEvent } from "./pb/dex223/v1/ERC20WrapperCreatedEvent";
 import { ERC223WrapperCreatedEvent } from "./pb/dex223/v1/ERC223WrapperCreatedEvent";
 
-// Функция для обработки массива событий определенного типа с помощью соответствующего обработчика
 function processEvents<T>(events: Array<T>, handler: (event: T) => void): void {
   if (events === null || events.length === 0) {
     return;
@@ -35,7 +34,7 @@ function processEvents<T>(events: Array<T>, handler: (event: T) => void): void {
 }
 
 export function handleEvents(bytes: Uint8Array): void {
-  // Декодируем события из полученного байтового массива
+  // Decode events from bytes array
   const eventsProto: Events = Protobuf.decode<Events>(bytes, Events.decode);
   if (eventsProto === null) {
     log.error("Failed to decode events", []);
@@ -50,28 +49,19 @@ export function handleEvents(bytes: Uint8Array): void {
   const collectEvents = eventsProto.collectEvents;
   const erc20WrapperCreatedEvents = eventsProto.erc20WrapperCreatedEvents;
   const erc223WrapperCreatedEvents = eventsProto.erc223WrapperCreatedEvents;
-  // if (poolCreatedEvents.length > 0) {
-  //   for (let i = 0; i < poolCreatedEvents.length; i++) {
-  //     handlePoolCreated(poolCreatedEvents[i]);
-  //   }
-  // }
-  // Проверка каждой категории событий
-  if (poolCreatedEvents)
-    processEvents<PoolCreatedEvent>(poolCreatedEvents, handlePoolCreated);
-  if (initializeEvents)
-    processEvents<InitializeEvent>(initializeEvents, handleInitialize);
-  if (swapEvents) processEvents<SwapEvent>(swapEvents, handleSwap);
-  if (mintEvents) processEvents<MintEvent>(mintEvents, handleMint);
-  if (burnEvents) processEvents<BurnEvent>(burnEvents, handleBurn);
-  if (collectEvents) processEvents<CollectEvent>(collectEvents, handleCollect);
-  if (erc20WrapperCreatedEvents)
-    processEvents<ERC20WrapperCreatedEvent>(
-      erc20WrapperCreatedEvents,
-      handleERC20WrapperCreated
-    );
-  if (erc223WrapperCreatedEvents)
-    processEvents<ERC223WrapperCreatedEvent>(
-      erc223WrapperCreatedEvents,
-      handleERC223WrapperCreated
-    );
+
+  processEvents<PoolCreatedEvent>(poolCreatedEvents, handlePoolCreated);
+  processEvents<InitializeEvent>(initializeEvents, handleInitialize);
+  processEvents<SwapEvent>(swapEvents, handleSwap);
+  processEvents<MintEvent>(mintEvents, handleMint);
+  processEvents<BurnEvent>(burnEvents, handleBurn);
+  processEvents<CollectEvent>(collectEvents, handleCollect);
+  processEvents<ERC20WrapperCreatedEvent>(
+    erc20WrapperCreatedEvents,
+    handleERC20WrapperCreated
+  );
+  processEvents<ERC223WrapperCreatedEvent>(
+    erc223WrapperCreatedEvents,
+    handleERC223WrapperCreated
+  );
 }

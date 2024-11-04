@@ -2,9 +2,8 @@ use crate::abi;
 use crate::pb;
 use crate::utils;
 use crate::token;
-// Удалены неиспользуемые импорты
 
-use substreams::store::{StoreGet, StoreGetProto, StoreSetProto, StoreSet, StoreNew}; // Импортируем необходимые трейты
+use substreams::store::{StoreGet, StoreGetProto, StoreSetProto, StoreSet, StoreNew};
 
 use substreams_ethereum::Event;
 use substreams_ethereum::pb::eth::v2 as eth;
@@ -14,7 +13,7 @@ use pb::dex223::v1::{
     FlashEvent, TokenConverterEvents, Erc223WrapperCreatedEvent, Erc20WrapperCreatedEvent
 };
 
-/// Хендлер для обработки событий создания пулов и связанных с ними данных
+/// Handler for handling pool creation events and associated data
 #[substreams::handlers::map]
 fn map_pools(
     block: eth::Block,
@@ -37,9 +36,9 @@ fn map_pools(
         for log in &tx_receipt.logs {
             let transaction = utils::load_transaction(block_number, block_timestamp, &log, &trx,);
 
-            // Декодирование события PoolCreated
+            // Decoding the PoolCreated event
             if let Some(event) = abi::factory::events::PoolCreated::match_and_decode(log) {
-                // Проверяем, совпадает ли адрес с адресом фабрики
+                // Check if the address matches the factory address
                 if log.address == factory_address {
                     let pool_address = event.pool.clone();
                     let token0 = token::get_token_with_fallback(&hex::encode(event.token0_erc20), &hex::encode(event.token0_erc223));
@@ -86,10 +85,10 @@ fn map_token_convertes(
         for log in &tx_receipt.logs {
             let transaction = utils::load_transaction(block_number, block_timestamp, &log, &trx);
             if log.address == converter_address {
-            // Декодирование события TokenConverterCreated
+            // Decoding the TokenConverterCreated event
                 if let Some(event) = abi::token_converter::events::Erc20WrapperCreated::match_and_decode(log) {
-                    // Проверяем, совпадает ли адрес с адресом конвертера
-                    let token = token::get_token_with_fallback(&hex::encode(&event.token), &hex::encode(&event.erc20_wrapper));
+                    // Check if the address matches the converter address
+                    let token = token::get_token_with_fallback(&hex::encode(&event.erc20_wrapper), &hex::encode(&event.token));
                     token_converters.erc223_to_erc20.push(Erc20WrapperCreatedEvent {
                         tx: Some(transaction.clone()),
                         token: token.clone(),
@@ -98,7 +97,7 @@ fn map_token_convertes(
                 
                 }
                 if let Some(event) = abi::token_converter::events::Erc223WrapperCreated::match_and_decode(log) {
-                    // Проверяем, совпадает ли адрес с адресом конвертера
+                    // Check if the address matches the converter address
                     let token = token::get_token_with_fallback(&hex::encode(&event.token), &hex::encode(&event.erc223_wrapper));
                     token_converters.erc20_to_erc223.push(Erc223WrapperCreatedEvent {
                         tx: Some(transaction.clone()),
@@ -114,7 +113,7 @@ fn map_token_convertes(
 }
 
 
-/// Хендлер для сохранения информации о пулах в хранилище
+/// Handler for storing pool information in storage
 #[substreams::handlers::store]
 fn store_pools(
     pool_events: PoolEvents,
@@ -130,7 +129,7 @@ fn store_pools(
     }
 }
 
-/// Хендлер для сохранения информации о токенах в хранилище
+/// Handler for storing token information in storage
 #[substreams::handlers::store]
 fn store_tokens(
     pool_events: PoolEvents,
@@ -159,15 +158,15 @@ fn store_tokens(
 #[substreams::handlers::map]
 fn map_events(
     block: eth::Block,
-    pool_events: PoolEvents, // Добавлено
-    token_converters: TokenConverterEvents, // Добавлено
+    pool_events: PoolEvents, // Added
+    token_converters: TokenConverterEvents, // Added
     store_pools: StoreGetProto<pb::dex223::v1::PoolCreatedEvent>,
     _store_tokens: StoreGetProto<pb::dex223::v1::TokenInfo>,
 ) -> Result<Events, substreams::errors::Error> {
 
     let mut events = Events {
-        pool_created_events: pool_events.pool_created_events.clone(), // Используем данные из map_pools
-        erc20_wrapper_created_events: token_converters.erc223_to_erc20.clone(), // Используем данные из map_token_convertes
+        pool_created_events: pool_events.pool_created_events.clone(), // Use data from map_pools
+        erc20_wrapper_created_events: token_converters.erc223_to_erc20.clone(), // Use data from map_token_convertes
         erc223_wrapper_created_events: token_converters.erc20_to_erc223.clone(),
         initialize_events: vec![],
         swap_events: vec![],
@@ -187,7 +186,7 @@ fn map_events(
         .unwrap()
         .seconds as u64;
 
-    // Создаем множество адресов пулов, созданных в текущем блоке
+    // Create set pools, have created in this block
     let new_pools: std::collections::HashSet<String> = events
         .pool_created_events
         .iter()
@@ -204,16 +203,16 @@ fn map_events(
             let transaction =
                 utils::load_transaction(block_number, block_timestamp, &log, &trx);
 
-            // Адрес пула из лога
+            // Address pool from log
             let pool_address = log.address.clone();
             let pool_address_hex = hex::encode(&pool_address);
 
-            // Проверяем, создан ли пул фабрикой
+            // Check already exists pool by factory
             let pool_exists = store_pools.get_last(&pool_address_hex).is_some()
                 || new_pools.contains(&pool_address_hex);
 
             if pool_exists {
-                // Декодирование события Initialize
+                // Check event Initialize
                 if let Some(event) = abi::pool::events::Initialize::match_and_decode(log) {
                     let initialize_event = InitializeEvent {
                         tx: Some(transaction.clone()),
@@ -225,7 +224,7 @@ fn map_events(
                     continue;
                 }
 
-                // Обрабатываем события Swap
+                // Check event Swap
                 if let Some(event) = abi::pool::events::Swap::match_and_decode(log) {
                     let swap_event = SwapEvent {
                         tx: Some(transaction.clone()),
@@ -242,7 +241,7 @@ fn map_events(
                     continue;
                 }
 
-                // Обрабатываем события Mint
+                // Check event Mint
                 if let Some(event) = abi::pool::events::Mint::match_and_decode(log) {
                     let mint_event = MintEvent {
                         tx: Some(transaction.clone()),
@@ -259,7 +258,7 @@ fn map_events(
                     continue;
                 }
 
-                // Обрабатываем события Burn
+                // Check event Burn
                 if let Some(event) = abi::pool::events::Burn::match_and_decode(log) {
                     let burn_event = BurnEvent {
                         tx: Some(transaction.clone()),
@@ -275,7 +274,7 @@ fn map_events(
                     continue;
                 }
 
-                // Обрабатываем события Collect
+                // Check event Collect
                 if let Some(event) = abi::pool::events::Collect::match_and_decode(log) {
                     let collect_event = CollectEvent {
                         tx: Some(transaction.clone()),

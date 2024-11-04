@@ -1,1 +1,5 @@
 .DS_Store
+graph-node/.env
+graph-node/generated-config.toml
+graph-node/.cache
+graph-node/data

@@ -19,44 +19,43 @@ fn get_token_info(token_address: &str, token_type: TokenType) -> Option<pb::dex2
         }
     };
 
-    // Получаем статические определения токенов
+    // **Moving ads here**
+    let token_address_bytes_fixed: [u8; 20] = match token_address_bytes.as_slice().try_into() {
+        Ok(bytes) => bytes,
+        Err(_) => {
+            substreams::log::debug!("Invalid token address length: {}", token_address);
+            return None;
+        }
+    };
+
+    let converter_address = utils::ADDRESS_CONVERTER.to_vec();
+
+    // Getting static token definitions
     let static_definitions = get_static_token_definitions();
 
-    // Проверяем, есть ли токен в статических определениях
+    // Check if a token is in static definitions
     if let Some(definition) = get_static_definition(&token_address_bytes, &static_definitions) {
         substreams::log::debug!("Token found in static definitions: {}", token_address);
 
-        // Проверяем total_supply
-        if definition.total_supply == "0" || definition.total_supply.is_empty() {
-            substreams::log::debug!("Total supply is zero or empty for token: {}", token_address);
-            return None;
-        }
-
-        // Инициализируем TokenInfo из статических данных
         let mut token_info = pb::dex223::v1::TokenInfo {
             name: definition.name.clone(),
             symbol: definition.symbol.clone(),
             decimals: definition.decimals as u64,
-            in_converter: definition.in_converter,
-            total_supply: definition.total_supply.clone(),
+            in_converter: false, // Will be updated later
+            total_supply: "0".to_string(), // Will be updated later
         };
 
-        // Дополнительные проверки или извлечение данных из конвертера для статических токенов
-        let converter_address = utils::ADDRESS_CONVERTER.to_vec();
-        let token_address_bytes_fixed: [u8; 20] = match token_address_bytes.as_slice().try_into() {
-            Ok(bytes) => bytes,
-            Err(_) => {
-                substreams::log::debug!("Invalid token address length: {}", token_address);
-                return None;
-            }
-        };
-
+        // Creation `RpcBatch`
         let batch = match token_type {
             TokenType::ERC20 => {
                 RpcBatch::new()
                     .add(
                         abi::token_converter::functions::GetErc223WrapperFor { token: token_address_bytes_fixed.to_vec() },
                         converter_address.clone(),
+                    )
+                    .add(
+                        abi::erc20_erc223::functions::TotalSupply {},
+                        token_address_bytes_fixed.to_vec(),
                     )
             },
             TokenType::ERC223 => {
@@ -65,19 +64,24 @@ fn get_token_info(token_address: &str, token_type: TokenType) -> Option<pb::dex2
                         abi::token_converter::functions::GetErc20WrapperFor { token: token_address_bytes_fixed.to_vec() },
                         converter_address.clone(),
                     )
+                    .add(
+                        abi::erc20_erc223::functions::TotalSupply {},
+                        token_address_bytes_fixed.to_vec(),
+                    )
             },
         };
 
-        // Выполняем соответствующие RPC вызовы
+        // Execution `batch`
         let responses = match batch.execute() {
             Ok(batch_response) => batch_response.responses,
             Err(e) => {
                 substreams::log::debug!("RPC batch execution failed: {}", e);
-                return Some(token_info); // Возвращаем статическую информацию даже при ошибке RPC
+                return Some(token_info);
             }
         };
 
-        // Проверка наличия соответствующей обёртки
+        // Processing responses
+        // Result [0]: check wrapper
         match token_type {
             TokenType::ERC20 => {
                 match RpcBatch::decode::<_, abi::token_converter::functions::GetErc223WrapperFor>(&responses[0]) {
@@ -107,28 +111,33 @@ fn get_token_info(token_address: &str, token_type: TokenType) -> Option<pb::dex2
             },
         }
 
+        // Result [1]: TotalSupply
+        let total_supply: String = match RpcBatch::decode::<_, abi::erc20_erc223::functions::TotalSupply>(&responses[1]) {
+            Some(decoded_total_supply) => {
+                substreams::log::debug!("decoded_total_supply ok: {}", decoded_total_supply.to_string());
+                decoded_total_supply.to_string()
+            }
+            None => {
+                substreams::log::debug!("failed to get total_supply");
+                "0".to_string()
+            }
+        };
+
+        // Refresh `total_supply` in `token_info`
+        token_info.total_supply = total_supply;
         substreams::log::info!("Token in converter: {}", token_info.in_converter);
 
-        // Проверка total_supply
-        if token_info.total_supply == "0" || token_info.total_supply.is_empty() {
+        // Check total_supply
+        if token_info.total_supply.is_empty() {
             substreams::log::debug!("Total supply is zero or empty for token: {}", token_address);
-            return None;
+            token_info.total_supply = "0".to_string();
         }
 
         return Some(token_info);
     }
 
-    // Если токен не найден в статических определениях, выполняем RPC вызовы
-    let token_address_bytes_fixed: [u8; 20] = match token_address_bytes.as_slice().try_into() {
-        Ok(bytes) => bytes,
-        Err(_) => {
-            substreams::log::debug!("Invalid token address length: {}", token_address);
-            return None;
-        }
-    };
-
-    let converter_address = utils::ADDRESS_CONVERTER.to_vec();
-
+    // If the token is not found in the static definitions, perform RPC calls
+    // The `token_address_bytes_fixed` and `converter_address` variables are already available here
     let batch = match token_type {
         TokenType::ERC20 => {
             RpcBatch::new()
@@ -178,7 +187,7 @@ fn get_token_info(token_address: &str, token_type: TokenType) -> Option<pb::dex2
         },
     };
 
-    // Выполняем соответствующие RPC вызовы
+    // We perform the corresponding RPC calls
     let responses = match batch.execute() {
         Ok(batch_response) => batch_response.responses,
         Err(e) => {
@@ -192,7 +201,7 @@ fn get_token_info(token_address: &str, token_type: TokenType) -> Option<pb::dex2
     let mut symbol: String = "unknown".to_string();
     let mut in_converter: bool = false;
 
-    // Обработка ответа Decimals
+    // Processing Decimals response
     match RpcBatch::decode::<_, abi::erc20_erc223::functions::Decimals>(&responses[0]) {
         Some(decoded_decimals) => {
             decimals = decoded_decimals.to_u64();
@@ -204,7 +213,7 @@ fn get_token_info(token_address: &str, token_type: TokenType) -> Option<pb::dex2
         }
     };
 
-    // Обработка ответа Name
+    // Processing the Name response
     match RpcBatch::decode::<_, abi::erc20_erc223::functions::Name>(&responses[1]) {
         Some(decoded_name) => {
             name = decoded_name;
@@ -215,7 +224,7 @@ fn get_token_info(token_address: &str, token_type: TokenType) -> Option<pb::dex2
         }
     };
 
-    // Обработка ответа Symbol
+    // Handling the Symbol response
     match RpcBatch::decode::<_, abi::erc20_erc223::functions::Symbol>(&responses[2]) {
         Some(decoded_symbol) => {
             symbol = decoded_symbol;
@@ -226,7 +235,7 @@ fn get_token_info(token_address: &str, token_type: TokenType) -> Option<pb::dex2
         }
     };
 
-    // Обработка ответа TotalSupply
+    // Processing TotalSupply response
     let total_supply: String = match RpcBatch::decode::<_, abi::erc20_erc223::functions::TotalSupply>(&responses[3]) {
         Some(decoded_total_supply) => {
             substreams::log::debug!("decoded_total_supply ok: {}", decoded_total_supply.to_string());
@@ -238,7 +247,7 @@ fn get_token_info(token_address: &str, token_type: TokenType) -> Option<pb::dex2
         }
     };
 
-    // Проверка наличия соответствующей обёртки
+    // Checking for the appropriate wrapper
     match token_type {
         TokenType::ERC20 => {
             match RpcBatch::decode::<_, abi::token_converter::functions::GetErc223WrapperFor>(&responses[4]) {
@@ -270,10 +279,9 @@ fn get_token_info(token_address: &str, token_type: TokenType) -> Option<pb::dex2
 
     substreams::log::info!("Token in converter: {}", in_converter);
 
-    // Проверка total_supply
-    if total_supply == "0" || total_supply.is_empty() {
+    // Check total_supply
+    if total_supply.is_empty() {
         substreams::log::debug!("Total supply is zero or empty for token: {}", token_address);
-        return None;
     }
 
     Some(pb::dex223::v1::TokenInfo {
@@ -286,17 +294,14 @@ fn get_token_info(token_address: &str, token_type: TokenType) -> Option<pb::dex2
 }
 
 fn get_erc20_token_info(token_address_erc20: &str) -> Option<pb::dex223::v1::TokenInfo> {
-    // Реализуйте логику получения информации о ERC20 токене
     get_token_info(token_address_erc20, TokenType::ERC20)
 }
 
 fn get_erc223_token_info(token_address_erc223: &str) -> Option<pb::dex223::v1::TokenInfo> {
-    // Реализуйте логику получения информации о ERC223 токене
     get_token_info(token_address_erc223, TokenType::ERC223)
 }
 
 pub fn get_token_with_fallback(token_address_erc20: &str, token_address_erc223: &str) -> Option<pb::dex223::v1::Token> {
-    // Сначала пробуем получить информацию по адресу ERC20
     if let Some(token_info) = get_erc20_token_info(token_address_erc20) {
         return Some(pb::dex223::v1::Token {
             address_erc20: token_address_erc20.to_string(),
@@ -305,7 +310,6 @@ pub fn get_token_with_fallback(token_address_erc20: &str, token_address_erc223: 
         });
     }
 
-    // Если информация по ERC20 не найдена, пробуем для адреса ERC223
     if let Some(token_info) = get_erc223_token_info(token_address_erc223) {
         return Some(pb::dex223::v1::Token {
             address_erc20: token_address_erc20.to_string(),
@@ -314,6 +318,5 @@ pub fn get_token_with_fallback(token_address_erc20: &str, token_address_erc223: 
         });
     }
 
-    // Если информации нет ни по одному из адресов, возвращаем None
     None
 }
